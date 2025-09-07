@@ -1,0 +1,73 @@
+#ifndef KSOCKET_HPP
+#define KSOCKET_HPP
+
+#include <cstdint>
+#include <netinet/in.h>
+#include <mutex>
+#include <vector>
+#include <ctime>
+
+// Message Types
+enum class MsgType { DATA, ACK };
+
+struct ktp_header_t {
+    MsgType type;
+    uint32_t seq_num;
+    uint32_t last_ack;
+    uint32_t rwnd_size;
+};
+
+struct ktp_message_t {
+    ktp_header_t header;
+    std::vector<char> data;
+    std::time_t timestamp;
+};
+
+struct window_t {
+    uint32_t base;
+    uint32_t next_seq;
+    size_t size;
+    size_t max_size;
+    std::vector<ktp_message_t> msgs;
+};
+
+struct recv_buffer_t {
+    std::vector<ktp_message_t> msgs;
+    size_t start{0}, end{0}, count{0};
+    uint32_t last_ack{0};
+    uint32_t expected_seq{0};
+    uint32_t rwnd_size{0};
+    bool nospace{false};
+};
+
+struct send_buffer_t {
+    std::vector<ktp_message_t> msgs;
+    size_t start{0}, end{0}, count{0};
+    window_t swnd;
+};
+
+struct ktp_socket_t {
+    bool is_active{false};
+    pid_t process_id{0};
+    int udp_socket{-1};
+    sockaddr_in src_addr{}, dst_addr{};
+    send_buffer_t send_buf;
+    recv_buffer_t recv_buf;
+    std::mutex mutex;
+};
+
+struct shared_memory_t {
+    std::vector<ktp_socket_t> sockets;
+    std::mutex mutex;
+};
+
+// Functions
+int k_socket(int domain, int type, int protocol);
+int k_bind(int sockfd, const sockaddr* src_addr, socklen_t src_addrlen,
+           const sockaddr* dst_addr, socklen_t dst_addrlen);
+ssize_t k_sendto(int sockfd, const void* buf, size_t len, int flags);
+ssize_t k_recvfrom(int sockfd, void* buf, size_t len, int flags);
+int k_close(int sockfd);
+bool dropMessage(float p);
+
+#endif
