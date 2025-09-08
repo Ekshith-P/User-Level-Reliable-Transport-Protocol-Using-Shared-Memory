@@ -1,73 +1,48 @@
-#ifndef KSOCKET_HPP
-#define KSOCKET_HPP
+KTP Socket Implementation Documentation
 
-#include <cstdint>
-#include <netinet/in.h>
-#include <mutex>
-#include <vector>
-#include <ctime>
+## Overview
+This project implements a custom reliable transport protocol (KTP) over UDP. It uses shared memory for inter-process communication between user applications and a central daemon process. The daemon manages the protocol's logic, including sending, receiving, acknowledgments, and retransmissions using a sliding window mechanism.
 
-// Message Types
-enum class MsgType { DATA, ACK };
+## Files
+- ksocket.h: Header file defining the KTP API, data structures, and constants.
+- ksocket.c: Implementation of the KTP library and the daemon threads (R, S, G).
+- initksocket.c: The main daemon program that initializes shared memory and starts the threads.
+- user1.c: A sample sender application that reads a file and sends it using KTP.
+- user2.c: A sample receiver application that receives data via KTP and writes it to a file.
+- Makefile: Script to compile and link all components of the project.
+- input.txt: Sample text file for the sender (user1).
 
-struct ktp_header_t {
-    MsgType type;
-    uint32_t seq_num;
-    uint32_t last_ack;
-    uint32_t rwnd_size;
-};
+## Architecture
+1.  **Daemon (initksocket):** This process must be run first. It creates a shared memory segment and launches three threads:
+    * **Thread R (Receiver):** Listens for incoming UDP packets (both data and ACKs) and places them in the correct socket's receive buffer or updates the sender's window.
+    * **Thread S (Sender):** Periodically checks the send buffer of each socket. It sends new packets and retransmits packets that have timed out.
+    * **Thread G (Garbage Collector):** Periodically checks if the user processes that created sockets are still alive. If a process has terminated, it cleans up the associated socket resources.
 
-struct ktp_message_t {
-    ktp_header_t header;
-    std::vector<char> data;
-    std::time_t timestamp;
-};
+2.  **User Applications (user1, user2):** These are the client programs. They attach to the shared memory created by the daemon and use the `k_socket` API to send and receive data without worrying about the underlying UDP packets, reliability, or timeouts.
 
-struct window_t {
-    uint32_t base;
-    uint32_t next_seq;
-    size_t size;
-    size_t max_size;
-    std::vector<ktp_message_t> msgs;
-};
+## How to Compile and Run
 
-struct recv_buffer_t {
-    std::vector<ktp_message_t> msgs;
-    size_t start{0}, end{0}, count{0};
-    uint32_t last_ack{0};
-    uint32_t expected_seq{0};
-    uint32_t rwnd_size{0};
-    bool nospace{false};
-};
+1.  **Compile the project:**
+    Open a terminal and run the `make` command.
+    $ make
 
-struct send_buffer_t {
-    std::vector<ktp_message_t> msgs;
-    size_t start{0}, end{0}, count{0};
-    window_t swnd;
-};
+2.  **Run the Daemon (Terminal 1):**
+    Start the daemon process. It will print a shared memory ID (shmid).
+    $ ./initksocket
+    > [initksocket] Shared memory created with ID: 123456
 
-struct ktp_socket_t {
-    bool is_active{false};
-    pid_t process_id{0};
-    int udp_socket{-1};
-    sockaddr_in src_addr{}, dst_addr{};
-    send_buffer_t send_buf;
-    recv_buffer_t recv_buf;
-    std::mutex mutex;
-};
+3.  **Run the Receiver (Terminal 2):**
+    Use the `shmid` from the daemon and specify an output file name.
+    $ ./user2 123456 output.txt
 
-struct shared_memory_t {
-    std::vector<ktp_socket_t> sockets;
-    std::mutex mutex;
-};
+4.  **Run the Sender (Terminal 3):**
+    Use the same `shmid`, the input file, and an optional drop probability (e.g., 0.2 for 20%).
+    $ ./user1 123456 input.txt 0.2
 
-// Functions
-int k_socket(int domain, int type, int protocol);
-int k_bind(int sockfd, const sockaddr* src_addr, socklen_t src_addrlen,
-           const sockaddr* dst_addr, socklen_t dst_addrlen);
-ssize_t k_sendto(int sockfd, const void* buf, size_t len, int flags);
-ssize_t k_recvfrom(int sockfd, void* buf, size_t len, int flags);
-int k_close(int sockfd);
-bool dropMessage(float p);
+5.  **Verify:**
+    After the sender finishes, compare the input and output files.
+    $ diff input.txt output.txt
 
-#endif
+6.  **Clean Up:**
+    Stop the daemon process in Terminal 1 by pressing `Ctrl+C`. To remove all compiled files, run:
+    $ make clean

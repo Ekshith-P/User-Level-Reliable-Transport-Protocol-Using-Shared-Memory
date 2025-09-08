@@ -1,0 +1,31 @@
+# Makefile to create initksocket executable
+
+# Compiler and flags
+CC = gcc
+CFLAGS = -Wall -g
+LDFLAGS = -L. -lksocket -lpthread
+
+# Target executable
+TARGET = initksocket
+
+# Object files
+OBJS = initksocket.o
+
+# Default target
+all: $(TARGET)
+
+# Rule to link the executable
+$(TARGET): $(OBJS) libksocket.a
+	$(CC) $(OBJS) $(LDFLAGS) -o $(TARGET)
+	@echo "Executable $(TARGET) created"
+
+# Rule to compile initksocket.c into initksocket.o
+initksocket.o: initksocket.c ksocket.h
+	$(CC) $(CFLAGS) -c initksocket.c -o initksocket.o
+
+# Clean up
+clean:
+	rm -f $(OBJS) $(TARGET)
+	@echo "Cleaned up initksocket files"
+
+.PHONY: all clean

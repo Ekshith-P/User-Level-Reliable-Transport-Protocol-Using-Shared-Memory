@@ -1,0 +1,29 @@
+
+# Compiler and flags
+CC = gcc
+CFLAGS = -Wall -g
+
+# Target library
+LIB = libksocket.a
+
+# Object files
+OBJS = ksocket.o
+
+# Default target
+all: $(LIB)
+
+# Rule to create the static library
+$(LIB): $(OBJS)
+	ar rcs $(LIB) $(OBJS)
+	@echo "Library $(LIB) created"
+
+# Rule to compile ksocket.c into ksocket.o
+ksocket.o: ksocket.c ksocket.h
+	$(CC) $(CFLAGS) -c ksocket.c -o ksocket.o
+
+# Clean up
+clean:
+	rm -f $(OBJS) $(LIB)
+	@echo "Cleaned up library files"
+
+.PHONY: all clean
