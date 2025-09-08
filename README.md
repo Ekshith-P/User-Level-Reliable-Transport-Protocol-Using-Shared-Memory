@@ -44,7 +44,6 @@ Follow these steps to get the project running. You will need three separate term
 
 Ensure you have `g++` and `make` installed on your Linux system.
 
-```sh
 sudo apt-get update
 sudo apt-get install build-essential
 
